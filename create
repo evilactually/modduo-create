@@ -1,0 +1,224 @@
+#!/bin/bash
+
+# MIT License
+
+# Copyright (c) 2020 Vlad Shcherbakov
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+#######################################################################################################################
+# check arguments
+
+PROJECT_TYPE=$1
+PROJECT_NAME=$2
+
+if [[ "${PROJECT_TYPE}" == "" ]] || [[ "${PROJECT_NAME}" == "" ]]; then
+  echo "Usage: $0 <project type> <project name>"
+  echo "  Where project type can be faust"
+  echo "  and project name is the plugin name that will be created under ./plugins"
+  exit 1
+fi
+
+if [[ "${PROJECT_TYPE}" != "faust" ]] || [[ "${PROJECT_NAME}" == "" ]]; then
+	echo "Project type '${PROJECT_TYPE}' is not supported."
+	exit 1
+fi
+
+mkdir -p "./plugins/package/${PROJECT_NAME}"
+mkdir -p "./plugins/package/${PROJECT_NAME}/source"
+
+cat <<'EOF' > "./plugins/package/${PROJECT_NAME}/source/manifest.ttl.in"
+# ==== Bundles ====
+#
+# LV2 plugins are installed in ``bundles'', a directory with a particular
+# format.  Inside the bundle, the entry point is a file called `manifest.ttl`.
+# The manifest lists the plugins (or other resources) that are in this bundle,
+# and the files that contain further information.
+#
+# Hosts typically read the `manifest.ttl` of every bundle when starting up to
+# discover what LV2 plugins and other resources are present.  Accordingly,
+# manifest files should be as small as possible for performance reasons.
+#
+#
+# ==== Namespace Prefixes ====
+#
+# Turtle files contain many URIs.  To make this more readable, prefixes can be
+# defined.  For example, with the `lv2:` prefix below, instead of
+# <http://lv2plug.in/ns/lv2core#Plugin> the shorter form `lv2:Plugin` can be
+# used.  This is just a shorthand for URIs within one file, the prefixes are
+# not significant otherwise.
+
+@prefix lv2:  <http://lv2plug.in/ns/lv2core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# ==== A Plugin Entry ====
+
+<@uri@>
+	a lv2:Plugin ;
+	lv2:binary <@name@@dllext@>  ;
+	rdfs:seeAlso <@name@.ttl> .
+
+# The token `.so` above is replaced by the build system with the
+# appropriate extension for the current platform (e.g. .so, .dylib, .dll).
+# This file is called called `manifest.ttl.in` rather than `manifest.ttl`
+# to indicate that it is not the final file to be installed.
+# This is not necessary, but is a good idea for portable plugins.
+# For reability, the following text will assume `.so` is the extension used.
+#
+# In short, this declares that the resource with URI
+# `@uri@>` is an LV2 plugin, with executable code in
+# the file `am-modulator.so` and a full description in `@name@.ttl`.  These paths are
+# relative to the bundle directory.
+#
+# There are 3 statements in this description:
+# [options="header"]
+# |================================================================
+# | Subject                             | Predicate    | Object
+# | <@uri@>  | a            | lv2:Plugin
+# | <@uri@>  | lv2:binary   | <@name@@dllext@>
+# | <@uri@>  | rdfs:seeAlso | <@name@.ttl>
+# |================================================================
+#
+# The semicolon is used to continue the previous subject; an equivalent
+# but more verbose syntax for the same data is:
+
+<@uri@> a lv2:Plugin .
+<@uri@> lv2:binary <@name@@dllext@> .
+<@uri@> rdfs:seeAlso <@name@.ttl> .
+
+# (Since this data is equivalent, it is safe, if pointless, to list it twice)
+#
+# The documentation for a URI can often be found by visiting that URI in a web
+# browser, e.g. the documentation for lv2:binary can be found at
+# <http://lv2plug.in/ns/lv2core#binary>.  All standard LV2 classes and
+# properties are documented in this way, so if you encounter a URI in some data
+# which you do not understand, try this first.
+#
+# The URI of a plugin does not need to be a resolvable web address, it just
+# serves as a global identifier.  However, it is a good idea to use an actual
+# web address if possible for easy access documentation, downloads, and so on,
+# even if no documents are currently hosted there.  There are compatibility
+# rules about when the URI of a plugin must be changed, see the
+# http://lv2plug.in/ns/lv2core[LV2 specification] for details.  Note that this
+# does not require authors to control a top-level domain; for example, URIs in
+# project directories at shared hosting sites are fine.  It is not required to
+# use HTTP URIs, but use of other schemes is strongly discouraged.
+#
+# AUTHORS MUST NOT CREATE URIS AT DOMAINS THEY DO NOT CONTROL WITHOUT
+# PERMISSION, AND *ESPECIALLY* MUST NOT CREATE INVALID URIS, E.G. WHERE THE
+# PORTION FOLLOWING ``http://'' IS NOT A DOMAIN NAME.  If you need an example
+# URI, the domain http://example.org/ is reserved for this purpose.
+#
+# A detailed explanation of each statement follows.
+
+<@uri@> a lv2:Plugin .
+
+# The `a`, as in ``is a'', is a Turtle shortcut for `rdf:type`.
+# `lv2:Plugin` expands to <http://lv2plug.in/ns/lv2core#Plugin> (using the
+# `lv2:` prefix above) which is the type of all LV2 plugins.
+# This statement means ``<@uri@> is an LV2 plugin''.
+
+<@uri@> lv2:binary <@name@@dllext@> .
+
+# This says ```eg-amp` has executable code in the file `am-modulator.so`''.
+# Relative URIs in manifest files are relative to the bundle directory, so this
+# refers to the file am-modulator.so in the same directory as this manifest.ttl file.
+
+<@uri@> rdfs:seeAlso <@name@.ttl> .
+
+# This says ``there is more information about `eg-amp` in the file `@name@.ttl`''.
+# The host will look at all such files when it needs to actually use or
+# investigate the plugin.
+EOF
+
+PROJECT_NAME_SAFE=$(echo "${PROJECT_NAME}" | sed -e 's/-/_/g')
+
+cat <<'EOF' > "./plugins/package/${PROJECT_NAME}/source/${PROJECT_NAME_SAFE}.dsp"
+// Am Modulator Example written in Faust
+import("stdfaust.lib");
+modulator = ((1-modDepth) + (os.osc(modFreq)*0.5 + 0.5)*modDepth);
+modFreq = hslider("Modulator Frequency", 400, 0.1, 2000,0.01);
+modDepth = hslider("Modulator Depth", 0.5, 0, 1,0.01);
+process = _*modulator;
+EOF
+
+sed -e "s?@project_name@?${PROJECT_NAME_SAFE}?g" <<'EOF' > "./plugins/package/${PROJECT_NAME}/source/Makefile"
+CXX ?= g++
+CLSNAME = @project_name@
+URI_PREFIX = https://your.url.here
+
+build:manifest.ttl $(CLSNAME).ttl $(CLSNAME).so
+
+$(CLSNAME).so:$(CLSNAME).cpp
+	$(CXX) -shared -O3 -std=c++11 -ffast-math -ftree-vectorize '-DDLLEXT=".so"' -fPIC '-DPLUGIN_URI="$(URI_PREFIX)/$(CLSNAME)"' -DFAUST_META=1 -DFAUST_MIDICC=1 -DFAUST_MTS=1 -DFAUST_UI=0 -DVOICE_CTRLS=1 $< -o $@
+
+$(CLSNAME).cpp:@project_name@.dsp
+	faust -i -a /usr/share/faust/lv2.cpp -cn $(CLSNAME) $< -o $@
+
+$(CLSNAME).ttl:$(CLSNAME).cpp
+	g++ -O3 -std=c++11 -ffast-math -ftree-vectorize '-DDLLEXT=".so"' '-DPLUGIN_URI="$(URI_PREFIX)/$(CLSNAME)"' -DFAUST_META=1 -DFAUST_MIDICC=1 -DFAUST_MTS=1 -DFAUST_UI=0 -DVOICE_CTRLS=1 $< -o $(CLSNAME)
+	./$(CLSNAME) > $(CLSNAME).ttl
+
+manifest.ttl:manifest.ttl.in
+	sed -e"s?@name@?$(CLSNAME)?g" -e"s?@uri@?$(URI_PREFIX)/$(CLSNAME)?g" -e"s?@dllext@?.so?g" > "manifest.ttl" < manifest.ttl.in
+
+clean:
+	rm *.cpp -f
+	rm *.so -f
+	rm *.ttl -f
+
+install: build
+	install -d $(DESTDIR)$(PREFIX)/usr/local/lib/lv2/$(CLSNAME).lv2
+	install -m 644 *.so  $(DESTDIR)$(PREFIX)/usr/local/lib/lv2/$(CLSNAME).lv2/
+	install -m 644 *.ttl $(DESTDIR)$(PREFIX)/usr/local/lib/lv2/$(CLSNAME).lv2/
+EOF
+
+PROJECT_NAME_PREFIX=$(echo "${PROJECT_NAME}" | sed -e 's/[a-z]/\U&/g' -e 's/-/_/g')
+
+sed -e "s?@project_name_fixed@?${PROJECT_NAME_PREFIX}?" <<'EOF' > "./plugins/package/${PROJECT_NAME}/${PROJECT_NAME}.mk"
+# where to find the source code - locally in this case
+@project_name_fixed@_SITE_METHOD = local
+@project_name_fixed@_SITE = $($(PKG)_PKGDIR)/
+
+# even though this is a local build, we still need a version number
+# bump this number if you need to force a rebuild
+@project_name_fixed@_VERSION = 1
+
+# dependencies (list of other buildroot packages, separated by space)
+@project_name_fixed@_DEPENDENCIES =
+
+# LV2 bundles that this package generates (space separated list)
+@project_name_fixed@_BUNDLES = @project_name_fixed@.lv2
+
+# call make with the current arguments and path. "$(@D)" is the build directory.
+@project_name_fixed@_TARGET_MAKE = $(TARGET_MAKE_ENV) $(TARGET_CONFIGURE_OPTS) $(MAKE) -C $(@D)/source
+
+# build command
+define @project_name_fixed@_BUILD_CMDS
+	$(@project_name_fixed@_TARGET_MAKE)
+endef
+
+# install command
+define @project_name_fixed@_INSTALL_TARGET_CMDS
+	$(@project_name_fixed@_TARGET_MAKE) install DESTDIR=$(TARGET_DIR)
+endef
+
+# import everything else from the buildroot generic package
+$(eval $(generic-package))
+EOF
